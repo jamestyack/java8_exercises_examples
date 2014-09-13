@@ -1,27 +1,26 @@
 package net.tyack.java8for.chapter1;
 
+import static org.junit.Assert.assertTrue;
+
 import java.io.File;
 import java.util.Arrays;
-import java.util.List;
-
 import org.junit.Test;
 
 public class Chapter2Test {
 
 	@Test
-	public void exercise2lambda() {
+	public void exercise2isDirectoryFilterLambda() {
 		File[] listFiles = new File("/Users").listFiles(f -> f.isDirectory());
-		List<File> files = Arrays.asList(listFiles);
-		files.forEach(System.out::println);
-		System.out.println("Total folders = " + files.size());
+		Arrays.asList(listFiles).forEach(f -> {
+			assertTrue(f.isDirectory());
+			System.out.println(f);
+		});
 	}
-	
+
 	@Test
-	public void exercise2functionalReference() {
+	public void exercise2isDirectoryFilterFunctionalReference() {
 		File[] listFiles = new File("/Users").listFiles(File::isDirectory);
-		List<File> files = Arrays.asList(listFiles);
-		files.forEach(System.out::println);
-		System.out.println("Total folders = " + files.size());
+		Arrays.asList(listFiles).forEach(f -> assertTrue(f.isDirectory()));
 	}
 
 }
