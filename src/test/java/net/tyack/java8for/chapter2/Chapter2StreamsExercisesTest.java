@@ -1,6 +1,7 @@
 package net.tyack.java8for.chapter2;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -20,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -234,27 +237,120 @@ public class Chapter2StreamsExercisesTest {
      * second, stopping when one of them runs out of elements.
      */
     @Test
-    public void ex8() {
-	fail("unimplemented");
+    public void ex8zip() {
+	Stream<String> names = Stream.of("tigger", "king tut", "trold");
+	Stream<String> animalTypes = Stream.of("dog", "guinea pig", "cat");
+	Stream<String> zip = zip(names, animalTypes);
+	zip.forEach(System.out::println);
+    }
+    
+    // tricky one! my solution was helped along by...
+    // https://github.com/galperin/Solutions-for-exercises-from-Java-SE-8-for-the-Really-Impatient-by-Horstmann
+    public <T> Stream<T> zip(Stream<T> first, Stream<T> second) {
+	Iterator<T> secondIter = second.iterator();
+	Stream<T> streamToReturn = first.flatMap(f -> {
+	    if (secondIter.hasNext()) {
+		return Stream.of(f, secondIter.next());
+	    } else {
+		first.close();
+		return null;
+	    }
+	});
+	return streamToReturn;
     }
 
     /**
-     * 9. Join all elements in a Stream < ArrayList < T > > to one ArrayList <
+     * 9. Join all elements in a Stream <ArrayList <T>> to one ArrayList <
      * T>. Show how to do this with the three forms of reduce.
      */
     @Test
-    public void ex9() {
-	fail("unimplemented");
+    public void ex9combineStreamOfLists() {
+	List<Integer> listOne = Arrays.asList(1,2,3,4,5);
+	List<Integer> listTwo = Arrays.asList(6,7,8,9,10);
+	List<Integer> listThree = Arrays.asList(11,12,13,14,15);
+	List<Integer> combineStreamOfListsToOneList = combineStreamOfListsToOneListFlatMap(Stream.of(listOne, listTwo));
+	combineStreamOfListsToOneList.forEach(System.out::println);
+	List<Integer> combineStreamOfListsToOneListReduceOp = combineStreamOfListsToOneListReduceOp(Stream.of(listOne, listTwo, listThree));
+	combineStreamOfListsToOneListReduceOp.forEach(System.out::println);
+	List<String> combineStreamOfListsToOneListReduceOp2 = combineStreamOfListsToOneListReduceOp(Stream.of(new ArrayList<String>()));
+	combineStreamOfListsToOneListReduceOp2.forEach(System.out::println);
     }
+    
+    private<T> List<T> combineStreamOfListsToOneListFlatMap(Stream<List<T>> streamOfLists) {
+	Stream<T> flatMap = streamOfLists.flatMap(list -> list.stream());
+	return flatMap.collect(Collectors.toList());
+    }
+    
+    /**
+     * Added some output to help with understanding.
+     * @param streamOfLists
+     * @return
+     */
+    private<T> List<T> combineStreamOfListsToOneListReduceOp(Stream<List<T>> streamOfLists) {
+	return streamOfLists.reduce(
+		// identity the identity value for the accumulating function
+		new ArrayList<T>(), 
+		// accumulator an associative, non-interfering, stateless function for combining two values
+		(left, right) -> {
+		    List<T> list = new ArrayList<>(left);
+		    System.out.println("Created new list by passing left " + left + " to constructor");
+		    list.addAll(right);
+		    System.out.println("Addall right: " + right + " to new list");
+		    System.out.println("Returning the list: " + list + " from the function");
+		    return list;
+		}
+	);
+    } 
+    
+    
 
     /**
      * 10. Write a call to reduce that can be used to compute the average of a
-     * Stream < Double>. Why can’t you simply compute the sum and divide by
+     * Stream <Double>. Why can’t you simply compute the sum and divide by
      * count()?
+     * Also based on https://github.com/galperin/Solutions-for-exercises-from-Java-SE-8-for-the-Really-Impatient-by-Horstmann
+     * 's solution
      */
     @Test
-    public void ex10() {
-	fail("unimplemented");
+    public void ex10AverageOfDoublesStream() {
+	double average = DoubleStream.of(1.5, 1.8, 0.5, 8.8, 3.5, 1.2).average().getAsDouble();
+	System.out.println(average);
+	Stream<Double> streamOfDoubles = Stream.of(1.5, 1.8, 0.5, 8.8, 3.5, 1.2);
+	System.out.println(averageOfDoublesStream(streamOfDoubles));
+	
+    }
+
+    /**
+     * 
+     * @param streamOfDoubles
+     * @return
+     */
+    private double averageOfDoublesStream(Stream<Double> streamOfDoubles) {
+	// a reduction also known as a fold
+	return streamOfDoubles.reduce(
+		// identity: the identity value for the combiner function
+		new AverageUtil(), 
+		// accumulator: an associative, non-interfering, stateless function for 
+		// incorporating an additional element into a result
+		(averageUtil, dbl) -> {
+		    System.out.println("accumulator params: " + averageUtil + ", " + dbl);
+		    return averageUtil.accumulate(dbl);
+		},
+		//combiner an associative, non-interfering, stateless function 
+		// for combining two values, which must be compatible with the accumulator function
+		(au1, au2) -> { 
+		    System.out.println("combiner params: " + au1 + ", " + au2);
+		    return au1.combine(au2);
+		}
+		).getAverage();
+    }
+    
+    // also shortcut
+    private double averageOfDoublesStreamShortcut(Stream<Double> streamOfDoubles) {
+	return streamOfDoubles.reduce(new AverageUtil(), 
+		AverageUtil::accumulate,
+		AverageUtil::combine
+		).getAverage();
     }
 
     /**
@@ -266,7 +362,19 @@ public class Chapter2StreamsExercisesTest {
      */
     @Test
     public void ex11() {
-	fail("unimplemented");
+	List<ArrayList<String>> list = new ArrayList<>();
+        list.add(new ArrayList<>(Arrays.asList("01", "02", "03")));
+        list.add(new ArrayList<>(Arrays.asList("04", "05")));
+        list.add(new ArrayList<>(Arrays.asList("06", "07", "08", "09", "10")));
+        assertEquals(10, collect(list.stream()).size());
+    }
+    
+    public List<String> collect(Stream <ArrayList<String>> list) {
+	int totalSizeOfList = list.mapToInt(l -> l.size()).sum();
+	List<String> result = new ArrayList<>(totalSizeOfList);
+	IntStream.range(0, totalSizeOfList);
+	
+	return null;
     }
 
     /**
@@ -306,5 +414,41 @@ public class Chapter2StreamsExercisesTest {
     private Stream<String> getStreamOfWords(String line) {
 	return Splitter.on(CharMatcher.BREAKING_WHITESPACE).omitEmptyStrings().splitToList(line).stream();
     }
+}
 
+// immutable
+class AverageUtil {
+    
+    @Override
+    public String toString() {
+	return "AverageUtil [items=" + items + ", total=" + total + "]";
+    }
+
+    final int items;
+    final double total;
+    
+    public AverageUtil() {
+	items = 0;
+	total = 0.0;
+    }
+    
+    AverageUtil(int items, double total) {
+	this.items = items;
+	this.total = total;
+    }
+    
+    AverageUtil accumulate(double item) {
+	return new AverageUtil(this.items + 1, this.total + item);
+    }
+    
+    AverageUtil combine(AverageUtil averageUtil) {
+	return new AverageUtil(this.items + averageUtil.items, this.total + averageUtil.total);
+    }
+    
+    double getAverage() {
+	return total/items;
+    }
+    
+    
+    
 }
