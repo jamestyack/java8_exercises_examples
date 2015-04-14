@@ -3,6 +3,7 @@ package net.tyack.java8for.chapter2;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -15,12 +16,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -45,7 +48,7 @@ import com.google.common.base.Splitter;
 public class Chapter2StreamsExercisesTest {
 
     private static final int WORD_LENGTH = 12;
-    private static final String PATH_TO_LOTSA_WORDS = "/Users/jamestyack/git/java8for/src/test/resources/lotsa_words.txt";
+    private static final String PATH_TO_LOADS_OF_WORDS = "/Users/jamestyack/git/java8for/src/test/resources/lotsa_words.txt";
     private static Set<String> threadsUsed = Collections.synchronizedSet(new HashSet<>());
     private int isLongWordCounter;
 
@@ -67,7 +70,7 @@ public class Chapter2StreamsExercisesTest {
      */
     @Test
     public void ex1ParallelVersionOfForLoopWithoutStream() throws IOException, InterruptedException, ExecutionException {
-	Stream<String> words = getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS);
+	Stream<String> words = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
 	List<String> wordsList = words.collect(Collectors.toList());
 	final int totalWords = wordsList.size();
 	final int cores = Runtime.getRuntime().availableProcessors();
@@ -88,7 +91,7 @@ public class Chapter2StreamsExercisesTest {
 	    finalResult += resultPair.getValue();
 	}
 	System.out.println("Final total: " + finalResult);
-	assertEquals(getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS).parallel().filter(w -> w.length() > WORD_LENGTH).count(), new Long(finalResult).longValue());
+	assertEquals(getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS).parallel().filter(w -> w.length() > WORD_LENGTH).count(), new Long(finalResult).longValue());
     }
 
     private Callable<Entry<String, Integer>> createCallableToWorkOnPartition(List<String> wordsList, final int totalWords, final int wordsPerCore,
@@ -114,7 +117,7 @@ public class Chapter2StreamsExercisesTest {
 
     @Test
     public void ex1ParallelVersionOfForLoopWithStream() throws IOException {
-	Stream<String> words = getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS);
+	Stream<String> words = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
 	long count = words.parallel().filter(w -> isLongWord(w, false)).count();
 	System.out.println("Final result using parallel stream: " + count);
 	System.out.println("used threads " + threadsUsed);
@@ -129,7 +132,7 @@ public class Chapter2StreamsExercisesTest {
      */
     @Test
     public void ex2VerifyAskingForFirstFiveLongWordsDoesNotCallFilterAfterFound() throws IOException {
-	Stream<String> streamOfWordsInFile = getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS);
+	Stream<String> streamOfWordsInFile = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
 	Stream<String> result = streamOfWordsInFile.filter(w -> isLongWord(w, true)).limit(5);
 	System.out.println("First 5 long words" + result.collect(Collectors.toList()) + " method was called " + isLongWordCounter + " times.");
     }
@@ -145,11 +148,11 @@ public class Chapter2StreamsExercisesTest {
     @Test
     public void ex3MeasureCountingWithParallelVsStream() throws IOException {
 	long beforeStream = System.currentTimeMillis();
-	getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS).filter(w -> isLongWord(w, true)).count();
+	getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS).filter(w -> isLongWord(w, true)).count();
 	long afterStream = System.currentTimeMillis();
 
 	long beforeParallelStream = System.currentTimeMillis();
-	getStreamOfWordsInFile(PATH_TO_LOTSA_WORDS).parallel().filter(w -> isLongWord(w, true)).count();
+	getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS).parallel().filter(w -> isLongWord(w, true)).count();
 	long afterParallelStream = System.currentTimeMillis();
 
 	// Results
@@ -353,49 +356,60 @@ public class Chapter2StreamsExercisesTest {
 		).getAverage();
     }
 
-    /**
-     * 11. It should be possible to concurrently collect stream results in a
-     * single ArrayList, instead of merging multiple array lists, provided it
-     * has been constructed with the stream’s size, since concurrent set
-     * operations at disjoint positions are threadsafe. How can you achieve
-     * that?
-     */
-    @Test
-    public void ex11() {
-	List<ArrayList<String>> list = new ArrayList<>();
-        list.add(new ArrayList<>(Arrays.asList("01", "02", "03")));
-        list.add(new ArrayList<>(Arrays.asList("04", "05")));
-        list.add(new ArrayList<>(Arrays.asList("06", "07", "08", "09", "10")));
-        assertEquals(10, collect(list.stream()).size());
-    }
-    
-    public List<String> collect(Stream <ArrayList<String>> list) {
-	int totalSizeOfList = list.mapToInt(l -> l.size()).sum();
-	List<String> result = new ArrayList<>(totalSizeOfList);
-	IntStream.range(0, totalSizeOfList);
-	
-	return null;
-    }
 
     /**
      * 12. Count all short words in a parallel Stream < String>, as described in
      * Section 2.13 , “ Parallel Streams ,” on page 40 , by updating an array of
      * AtomicInteger. Use the atomic getAndIncrement method to safely increment
      * each counter.
+     * @throws IOException 
      */
     @Test
-    public void ex12() {
-	fail("unimplemented");
+    public void ex12() throws IOException {
+	AtomicInteger[] atomicInts = new AtomicInteger[12];
+	for (int i=0; i<12; i++) {
+	    atomicInts[i] = new AtomicInteger(0);
+	}
+	Stream<String> streamOfWordsInFile = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
+	streamOfWordsInFile.parallel().forEach(word -> {
+	    if (word.length() < 12) {
+		atomicInts[word.length()].getAndIncrement();
+	    }
+	});
+	int total = 0;
+	for (int i=0; i<atomicInts.length; i++) {
+	    System.out.println(i + ": " + atomicInts[i]);
+	    total += atomicInts[i].get();
+	}
+	System.out.println(total);
+	long count = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS).filter(w -> w.length() < 12).count();
+	assertEquals(total, count);
+    }
+    
+    @Test
+    public void badParallelStream() throws IOException {
+	Stream<String> words = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
+	int[] shortWords = new int[12];
+	words.parallel().forEach(s -> {
+	    if (s.length() < 12)
+		shortWords[s.length()]++;
+	}); // Error— race condition! - updating a shared array is not thread
+	    // safe!!
+	System.out.println(Arrays.toString(shortWords));
     }
 
     /**
      * 13. Repeat the preceding exercise, but filter out the short strings and
      * use the collect method with Collectors.groupingBy and
      * Collectors.counting.
+     * @throws IOException 
      */
     @Test
-    public void ex13() {
-	fail("unimplemented");
+    public void ex13() throws IOException {
+	Stream<String> allWordsInText = getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS);
+	Map<Integer, Long> result = allWordsInText.filter(w -> w.length() < 12).collect(Collectors.groupingBy(String::length, Collectors.counting()));
+	Optional<Long> totalWords = result.values().stream().reduce((a,b) -> a+b);
+	assertEquals(getStreamOfWordsInFile(PATH_TO_LOADS_OF_WORDS).filter(w -> w.length() < 12).count(), (long)totalWords.get());
     }
 
     private boolean isLongWord(String word, boolean trackCalls) {
